@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="robots" content="noindex">
+  <!-- Kod logowania nie może trafić do innych serwisów: brak zewnętrznych zasobów, brak nagłówka Referer. -->
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+  <title>LearnCode — logowanie</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #f4f7ff;
+      background: radial-gradient(ellipse at 18% 12%, rgba(66, 117, 255, .22), transparent 38%),
+                  radial-gradient(ellipse at 82% 88%, rgba(45, 204, 165, .12), transparent 36%), #0b1020; }
+    .card { width: min(100%, 460px); padding: 38px 28px 28px; text-align: center; border: 1px solid rgba(164, 190, 245, .16);
+      border-radius: 26px; background: rgba(19, 29, 51, .78); box-shadow: 0 24px 80px rgba(0, 0, 0, .35); backdrop-filter: blur(18px); }
+    .brand { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 30px; font-size: 19px; font-weight: 750; letter-spacing: -.5px; }
+    .logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; color: #071326;
+      background: linear-gradient(135deg, #9bcaff, #648dff); font-weight: 900; }
+    .icon { display: grid; place-items: center; width: 72px; height: 72px; margin: 0 auto 22px; border-radius: 50%;
+      border: 1px solid rgba(155, 202, 255, .3); background: rgba(100, 141, 255, .12); font-size: 32px; }
+    .icon.ok { color: #43dfaa; border-color: rgba(67, 223, 170, .25); background: rgba(67, 223, 170, .11); }
+    .icon.err { color: #ff8f8f; border-color: rgba(255, 143, 143, .3); background: rgba(255, 110, 110, .1); }
+    h1 { margin: 0 0 10px; font-size: clamp(23px, 6vw, 28px); line-height: 1.2; letter-spacing: -.8px; }
+    p { margin: 0 0 18px; color: #c3cde2; line-height: 1.5; }
+    .button { display: block; width: 100%; margin: 10px 0 0; padding: 14px 18px; border: 0; border-radius: 14px; cursor: pointer;
+      font: inherit; font-weight: 700; text-decoration: none; color: #071326; background: linear-gradient(135deg, #9bcaff, #648dff); }
+    .button.secondary { color: #f4f7ff; background: rgba(164, 190, 245, .12); border: 1px solid rgba(164, 190, 245, .2); }
+    .code { margin: 18px 0 6px; padding: 14px; border-radius: 14px; background: #0e1730; border: 1px dashed rgba(164, 190, 245, .35);
+      font-family: "Cousine", ui-monospace, monospace; font-size: 15px; word-break: break-all; user-select: all; }
+    .hidden { display: none; }
+    .small { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(164, 190, 245, .12); color: #8f9db8; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main class="card" aria-live="polite">
+    <div class="brand"><span class="logo">L</span> LearnCode</div>
+    <div id="icon" class="icon" aria-hidden="true">…</div>
+    <h1 id="title">Wracamy do aplikacji…</h1>
+    <p id="text">Za chwilę otworzy się aplikacja LearnCode i dokończy logowanie.</p>
+    <a id="open" class="button hidden" href="#">Otwórz aplikację LearnCode</a>
+    <div id="manual" class="hidden">
+      <p>Jeśli aplikacja się nie otworzyła, wybierz w niej <b>„Mam kod z przeglądarki”</b> i wklej ten kod:</p>
+      <div id="code" class="code"></div>
+      <button id="copy" class="button secondary" type="button">Kopiuj kod</button>
+    </div>
+    <p class="small">Kod działa tylko w aplikacji, w której zaczęto logowanie (PKCE), i tylko przez kilka minut. Nie udostępniaj go nikomu.</p>
+  </main>
+  <script>
+  (function () {
+    "use strict";
+    // Parametry z Supabase Auth: ?code=… (sukces) albo error / error_code / error_description (w zapytaniu lub fragmencie).
+    var params = {};
+    [location.hash.replace(/^#/, ""), location.search.replace(/^\?/, "")].forEach(function (part) {
+      part.replace(/\?/g, "&").split("&").forEach(function (pair) {
+        if (!pair) return;
+        var index = pair.indexOf("=");
+        var key = decodeURIComponent((index < 0 ? pair : pair.slice(0, index)).replace(/\+/g, " "));
+        var value = index < 0 ? "" : decodeURIComponent(pair.slice(index + 1).replace(/\+/g, " "));
+        if (!(key in params)) params[key] = value;
+      });
+    });
+    var safe = /^[A-Za-z0-9._~-]{1,512}$/;
+    var code = safe.test(params.code || "") ? params.code : "";
+    var flow = safe.test(params.flow || "") ? params.flow : "";
+    var error = (params.error || params.error_code || "").slice(0, 80);
+    var description = (params.error_description || "").slice(0, 300);
+    var query = [];
+    if (code) query.push("code=" + encodeURIComponent(code));
+    if (!code && error) query.push("error=" + encodeURIComponent(error), "error_description=" + encodeURIComponent(description));
+    if (flow) query.push("flow=" + encodeURIComponent(flow));
+    var tail = "auth/callback" + (query.length ? "?" + query.join("&") : "");
+    var scheme = "learncode://" + tail;
+    var isAndroid = /Android/i.test(navigator.userAgent);
+    var fallback = location.href.split("#")[0] + (location.search ? "&" : "?") + "fallback=1";
+    var intent = "intent://" + tail + "#Intent;scheme=learncode;S.browser_fallback_url=" + encodeURIComponent(fallback) + ";end";
+    var target = isAndroid ? intent : scheme;
+    var $ = function (id) { return document.getElementById(id); };
+    var open = $("open");
+    open.href = target;
+
+    function show(id) { $(id).classList.remove("hidden"); }
+    function showManual() {
+      if (!code) return;
+      $("code").textContent = code;
+      show("manual");
+    }
+    $("copy").addEventListener("click", function () {
+      var done = function () { $("copy").textContent = "Skopiowano"; };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(done, function () { window.getSelection().selectAllChildren($("code")); });
+      } else {
+        window.getSelection().selectAllChildren($("code"));
+      }
+    });
+
+    if (!code && !error) {
+      $("icon").textContent = "?";
+      $("title").textContent = "Brak danych logowania";
+      $("text").textContent = "Ta strona służy do powrotu do aplikacji po logowaniu przez Google, GitHub lub Discord. Rozpocznij logowanie w aplikacji LearnCode.";
+      return;
+    }
+    if (!code) {
+      var cancelled = /access_denied|cancel/i.test(error + " " + description);
+      $("icon").className = "icon err";
+      $("icon").textContent = "×";
+      $("title").textContent = cancelled ? "Logowanie anulowane" : "Nie udało się zalogować";
+      $("text").textContent = cancelled ? "Możesz wrócić do aplikacji i spróbować ponownie."
+                                        : "Dostawca logowania zwrócił błąd. Wróć do aplikacji i spróbuj ponownie.";
+      open.textContent = "Wróć do aplikacji";
+      show("open");
+      return;
+    }
+    $("icon").className = "icon ok";
+    $("icon").textContent = "✓";
+    $("title").textContent = "Zalogowano w przeglądarce";
+    show("open");
+    if (params.fallback === "1") {
+      $("text").textContent = "Nie udało się automatycznie otworzyć aplikacji.";
+      showManual();
+      return;
+    }
+    // Jednorazowa próba automatycznego otwarcia aplikacji; przycisk powyżej działa zawsze (gest użytkownika).
+    setTimeout(function () { window.location.href = target; }, 60);
+    setTimeout(function () {
+      $("text").textContent = "Jeśli aplikacja nie otworzyła się sama, użyj przycisku powyżej.";
+      showManual();
+    }, 2500);
+  })();
+  </script>
+</body>
+</html>
